@@ -19,3 +19,8 @@ euros =
 inEuros : Quantity number Euro -> number
 inEuros (Quantity q) =
     q
+
+
+formatEuros : Euros -> String
+formatEuros (Quantity q) =
+    "€" ++ String.fromInt q

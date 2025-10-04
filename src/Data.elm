@@ -30,10 +30,10 @@ playerToString player =
             "Alex"
 
         Emily ->
-            "Emily"
+            "Ems"
 
         Leonardo ->
-            "Leonardo"
+            "Leo"
 
         Liv ->
             "Liv"
@@ -42,7 +42,7 @@ playerToString player =
             "Soph"
 
         Wouter ->
-            "Wouter"
+            "Woot"
 
 
 initialCountry : Player -> Country

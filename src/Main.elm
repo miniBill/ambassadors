@@ -2,15 +2,17 @@ module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
 import Data exposing (Country(..), Player)
-import Element exposing (Attribute, Column, Element, alignBottom, alignRight, alignTop, centerY, el, fill, fillPortion, height, shrink, table, text, width)
+import Element exposing (Attribute, Column, Element, alignTop, centerY, el, fill, shrink, table, text, width)
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import Html exposing (Html)
+import Html.Attributes
 import Maybe.Extra
 import Money exposing (Euros)
 import SeqDict exposing (SeqDict)
 import SeqSet exposing (SeqSet)
-import Theme exposing (column, row, wrappedRow)
+import Theme
 import Types exposing (Action(..))
 
 
@@ -49,7 +51,7 @@ main : Program () Model Msg
 main =
     Browser.sandbox
         { init = init
-        , view = \model -> Element.layout [ Theme.padding ] (view model)
+        , view = \model -> Element.layout [] (view model)
         , update = update
         }
 
@@ -67,7 +69,7 @@ init =
 
 view : Model -> Element Msg
 view model =
-    column []
+    Theme.column [ Theme.padding ]
         [ viewNextAction model
         , viewHistory model.reverseHistory
         ]
@@ -97,11 +99,7 @@ viewHistory reverseHistory =
                 ( [], initialState )
                 reverseHistory
     in
-    column
-        [ Border.width 1
-        , Theme.padding
-        ]
-        (viewState finalState :: actionViews)
+    Theme.column [] (viewState finalState :: actionViews)
 
 
 updateState : Action -> State -> State
@@ -138,23 +136,153 @@ initialState =
                 (\player -> ( player, Money.euros 500 ))
             |> SeqDict.fromList
     , countries =
-        Data.countries
-            |> List.map
-                (\country ->
-                    ( country
-                    , { rulingCoalition = SeqSet.empty
-                      , votes = SeqDict.empty
-                      , investments = SeqDict.empty
-                      }
-                    )
-                )
-            |> SeqDict.fromList
+        List.foldl
+            (\player acc ->
+                SeqDict.insert
+                    (Data.initialCountry player)
+                    { rulingCoalition = SeqSet.singleton player
+                    , investments = SeqDict.empty
+                    , votes = SeqDict.singleton player (Money.euros 100)
+                    }
+                    acc
+            )
+            SeqDict.empty
+            Data.players
     }
 
 
 viewState : State -> Element msg
 viewState state =
-    text "TODO: viewState"
+    Theme.column []
+        [ viewPlayersState state.players
+        , viewCountryState state.countries
+        ]
+
+
+viewPlayersState : SeqDict Player Euros -> Element msg
+viewPlayersState players =
+    let
+        columns : List (Column () msg)
+        columns =
+            players
+                |> SeqDict.toList
+                |> List.map
+                    (\( player, euros ) ->
+                        { width = shrink
+                        , view = \_ -> el [ Font.alignRight ] (text (Money.formatEuros euros))
+                        , header = text (Data.playerToString player)
+                        }
+                    )
+    in
+    table
+        [ Border.width 1
+        , Theme.padding
+        , Theme.spacing
+        ]
+        { data = [ () ]
+        , columns = columns
+        }
+
+
+viewCountryState :
+    SeqDict
+        Country
+        { rulingCoalition : SeqSet Player
+        , investments : SeqDict Player Euros
+        , votes : SeqDict Player Euros
+        }
+    -> Element msg
+viewCountryState countries =
+    let
+        header : List (Html msg)
+        header =
+            [ Html.div [] []
+            , Html.div
+                [ Html.Attributes.colspan (List.length Data.players)
+                , Html.Attributes.style "text-align" "center"
+                , Html.Attributes.style "background-color" "#fdd"
+                , Html.Attributes.style "padding" "8px"
+                , Html.Attributes.style "grid-column-start" "2"
+                , Html.Attributes.style "grid-column-end" (String.fromInt (2 + List.length Data.players))
+                ]
+                [ Html.text "Votes" ]
+            , Html.div
+                [ Html.Attributes.colspan (List.length Data.players)
+                , Html.Attributes.style "text-align" "center"
+                , Html.Attributes.style "background-color" "#ddf"
+                , Html.Attributes.style "padding" "8px"
+                , Html.Attributes.style "grid-column-start" (String.fromInt (2 + List.length Data.players))
+                , Html.Attributes.style "grid-column-end" (String.fromInt (2 + 2 * List.length Data.players))
+                ]
+                [ Html.text "Investment" ]
+            , Html.div [] []
+            ]
+                ++ headerNamesCells
+                ++ headerNamesCells
+
+        headerNamesCells : List (Html msg)
+        headerNamesCells =
+            List.map
+                (\player ->
+                    Html.div [ Html.Attributes.style "padding" "8px" ]
+                        [ Html.text (Data.playerToString player) ]
+                )
+                Data.players
+
+        rows : List (Html msg)
+        rows =
+            countries
+                |> SeqDict.toList
+                |> List.concatMap viewRow
+
+        viewRow :
+            ( Country
+            , { rulingCoalition : SeqSet Player
+              , investments : SeqDict Player Euros
+              , votes : SeqDict Player Euros
+              }
+            )
+            -> List (Html msg)
+        viewRow ( country, { rulingCoalition, investments, votes } ) =
+            (Html.text (Theme.countryFlag country)
+                :: List.map
+                    (\player ->
+                        SeqDict.get player votes
+                            |> Maybe.map Money.formatEuros
+                            |> Maybe.withDefault ""
+                            |> Html.text
+                    )
+                    Data.players
+                ++ List.map
+                    (\player ->
+                        SeqDict.get player investments
+                            |> Maybe.map Money.formatEuros
+                            |> Maybe.withDefault ""
+                            |> Html.text
+                    )
+                    Data.players
+            )
+                |> List.map
+                    (\e ->
+                        Html.div
+                            [ Html.Attributes.style "padding" "8px"
+                            , Html.Attributes.style "text-align" "right"
+                            ]
+                            [ e ]
+                    )
+    in
+    (header ++ rows)
+        |> Html.div
+            [ Html.Attributes.style "display" "grid"
+            , Html.Attributes.style "grid-template-columns"
+                ("auto repeat(" ++ String.fromInt (2 * List.length Data.players) ++ ", 1fr)")
+            ]
+        |> Element.html
+        |> el
+            [ Border.width 1
+            , Theme.padding
+            , Theme.spacing
+            ]
 
 
 viewNextAction : Model -> Element Msg
@@ -162,7 +290,7 @@ viewNextAction model =
     let
         box : List (Element msg) -> Element msg
         box children =
-            column
+            Theme.column
                 [ Border.width 1
                 , Theme.padding
                 , width fill
@@ -171,15 +299,15 @@ viewNextAction model =
     in
     box
         [ Element.map PrepareCountry (countryPicker model.country)
-        , row [ width fill ]
-            [ column
+        , Theme.row [ width fill ]
+            [ Theme.column
                 [ width fill
                 , alignTop
                 ]
                 [ box (viewTravel model.country model.travel)
                 , box (viewInvestment model.country model.investment)
                 ]
-            , column
+            , Theme.column
                 [ Border.width 1
                 , Theme.padding
                 , width fill
@@ -295,7 +423,7 @@ playerPicker attrs selected =
                     , value = player
                     }
             )
-        |> row attrs
+        |> Theme.row attrs
 
 
 countryPicker : Maybe Country -> Element (Maybe Country)
@@ -309,7 +437,7 @@ countryPicker selected =
                     , value = country
                     }
             )
-        |> wrappedRow []
+        |> Theme.wrappedRow []
 
 
 update : Msg -> Model -> Model
