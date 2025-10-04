@@ -494,6 +494,7 @@ viewCountryState countries =
             , Html.Attributes.style "grid-template-columns"
                 ("auto auto repeat(" ++ String.fromInt (2 + 4 * List.length Data.players) ++ ", 1fr)")
             , Html.Attributes.style "text-align" "center"
+            , Html.Attributes.style "font-variant-numeric" "tabular-nums"
             ]
         |> Element.html
         |> el
@@ -667,14 +668,21 @@ viewElection country ( votes, coalition ) finalState =
             Data.players
                 |> Maybe.Extra.combineMap
                     (\player ->
-                        SeqDict.get player votes
-                            |> Maybe.andThen String.toInt
-                            |> Maybe.map
-                                (\e ->
-                                    ( player
-                                    , Money.euros e
-                                    )
-                                )
+                        case SeqDict.get player votes of
+                            Nothing ->
+                                Just ( player, Quantity.zero )
+
+                            Just "" ->
+                                Just ( player, Quantity.zero )
+
+                            Just v ->
+                                String.toInt v
+                                    |> Maybe.map
+                                        (\e ->
+                                            ( player
+                                            , Money.euros e
+                                            )
+                                        )
                     )
                 |> Maybe.map SeqDict.fromList
     in
