@@ -72,17 +72,20 @@ init =
 
 view : Model -> Element Msg
 view model =
+    let
+        ( historyView, finalState ) =
+            viewHistory model.reverseHistory
+    in
     Theme.column [ Theme.padding ]
-        [ viewNextAction model
-        , viewHistory model.reverseHistory
+        [ viewNextAction model finalState
+        , historyView
         ]
 
 
-viewHistory : List Action -> Element Msg
+viewHistory : List Action -> ( Element Msg, State )
 viewHistory reverseHistory =
     let
-        actionViews : List ( ( Color, Element msg ), State )
-        actionViews =
+        ( actionViews, finalState ) =
             List.foldr
                 (\action ( views, state ) ->
                     let
@@ -96,7 +99,6 @@ viewHistory reverseHistory =
                 )
                 ( [], initialState )
                 reverseHistory
-                |> Tuple.first
 
         columns : List (IndexedColumn ( ( Color, Element Msg ), State ) Msg)
         columns =
@@ -133,10 +135,12 @@ viewHistory reverseHistory =
               }
             ]
     in
-    indexedTable [ Theme.spacing ]
+    ( indexedTable [ Theme.spacing ]
         { columns = columns
         , data = actionViews ++ [ ( ( rgb 1 1 1, el [ centerX ] (text "Initial") ), initialState ) ]
         }
+    , finalState
+    )
 
 
 updateState : Action -> State -> State
@@ -505,8 +509,8 @@ initialInvestment country =
     Money.euros (Data.countryToPopulation country // 100000)
 
 
-viewNextAction : Model -> Element Msg
-viewNextAction model =
+viewNextAction : Model -> State -> Element Msg
+viewNextAction model finalState =
     let
         box : List (Element msg) -> Element msg
         box children =
@@ -532,7 +536,7 @@ viewNextAction model =
                 , Theme.padding
                 , width fill
                 ]
-                (viewElection model.country model.election)
+                (viewElection model.country model.election finalState)
             ]
         ]
 
@@ -570,9 +574,30 @@ viewInvestment country ( player, euros ) =
     ]
 
 
-viewElection : Maybe Country -> ( SeqDict Player String, SeqSet Player ) -> List (Element Msg)
-viewElection country ( votes, coalition ) =
+viewElection : Maybe Country -> ( SeqDict Player String, SeqSet Player ) -> State -> List (Element Msg)
+viewElection country ( votes, coalition ) finalState =
     let
+        action : Maybe Action
+        action =
+            Maybe.map2 (\c v -> Election c v coalition) country parsedVotes
+
+        nextState : Maybe CountryState
+        nextState =
+            Maybe.Extra.andThen2
+                (\c a -> (updateState a finalState).countries |> SeqDict.get c)
+                country
+                action
+
+        totalVotes : Maybe Euros
+        totalVotes =
+            nextState
+                |> Maybe.map
+                    (\s ->
+                        s.votes
+                            |> SeqDict.values
+                            |> Quantity.sum
+                    )
+
         columns : List (Column Player Msg)
         columns =
             [ { header = Element.none
@@ -598,13 +623,40 @@ viewElection country ( votes, coalition ) =
                             , placeholder = Nothing
                             }
               }
+            , { header = Element.none
+              , width = shrink
+              , view =
+                    \player ->
+                        case
+                            Maybe.map2 Tuple.pair
+                                (Maybe.andThen
+                                    (\s -> SeqDict.get player s.votes)
+                                    nextState
+                                )
+                                totalVotes
+                        of
+                            Nothing ->
+                                Element.none
+
+                            Just ( v, t ) ->
+                                el [ centerY ]
+                                    (text
+                                        (String.fromInt
+                                            (100
+                                                * Money.inEuros v
+                                                // Money.inEuros t
+                                            )
+                                            ++ "%"
+                                        )
+                                    )
+              }
             ]
 
         button : Element Msg
         button =
             Theme.primaryButton [ width fill ]
                 { label = "Elect"
-                , onPress = Maybe.map2 (\c v -> CommitAction (Election c v coalition)) country parsedVotes
+                , onPress = Maybe.map CommitAction action
                 }
 
         parsedVotes : Maybe (SeqDict Player Euros)
