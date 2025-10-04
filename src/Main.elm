@@ -113,7 +113,7 @@ viewHistory reverseHistory =
                                 , alignTop
                                 ]
                                 f
-                            , viewPlayersState state.players
+                            , viewPlayersState state
                             , if i == 0 && not (List.isEmpty reverseHistory) then
                                 Theme.button
                                     [ width fill
@@ -185,12 +185,6 @@ updateState action state =
 
         Election country votes coalition ->
             let
-                totalLiquidity : Euros
-                totalLiquidity =
-                    state.players
-                        |> SeqDict.values
-                        |> Quantity.sum
-
                 totalInvestment : Euros
                 totalInvestment =
                     old.investments
@@ -228,13 +222,7 @@ updateState action state =
                                         -- €100 per vote
                                         |> Quantity.plus (Money.euros 100)
                                         -- Eat the rich
-                                        |> Quantity.minus
-                                            (Money.euros
-                                                (100
-                                                    * Money.inEuros initial
-                                                    // Money.inEuros totalLiquidity
-                                                )
-                                            )
+                                        |> Quantity.minus (eatTheRich initial state)
                                         |> Quantity.plus rent
                                         |> Quantity.minus vote
                                 )
@@ -265,6 +253,22 @@ updateState action state =
                         }
                         state.countries
             }
+
+
+totalLiquidity : State -> Euros
+totalLiquidity state =
+    state.players
+        |> SeqDict.values
+        |> Quantity.sum
+
+
+eatTheRich : Euros -> State -> Euros
+eatTheRich initial state =
+    Money.euros
+        (100
+            * Money.inEuros initial
+            // Money.inEuros (totalLiquidity state)
+        )
 
 
 viewAction : Action -> ( Color, Element msg )
@@ -318,8 +322,8 @@ initialState =
     }
 
 
-viewPlayersState : SeqDict Player Euros -> Element msg
-viewPlayersState players =
+viewPlayersState : State -> Element msg
+viewPlayersState state =
     let
         columns : List (Column ( Player, Euros ) msg)
         columns =
@@ -331,6 +335,10 @@ viewPlayersState players =
               , view = \( _, euros ) -> el [ Font.alignRight ] (text (Money.formatEuros euros))
               , header = Element.none
               }
+            , { width = shrink
+              , view = \( _, euros ) -> el [ Font.alignRight ] (text (Money.formatEuros (eatTheRich euros state)))
+              , header = Element.none
+              }
             ]
     in
     table
@@ -339,7 +347,7 @@ viewPlayersState players =
         , Theme.spacing
         , width shrink
         ]
-        { data = SeqDict.toList players
+        { data = SeqDict.toList state.players
         , columns = columns
         }
 
