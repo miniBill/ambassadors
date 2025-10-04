@@ -27,22 +27,22 @@ playerToString : Player -> String
 playerToString player =
     case player of
         Alex ->
-            "Alex"
+            "💅 Alex"
 
         Emily ->
-            "Ems"
+            "🖌️ Ems"
 
         Leonardo ->
-            "Leo"
+            "🐦 Leo"
 
         Liv ->
-            "Liv"
+            "🥐 Liv"
 
         Soph ->
-            "Soph"
+            "🐼 Soph"
 
         Wouter ->
-            "Woot"
+            "🛰️ Woot"
 
 
 initialCountry : Player -> Country
