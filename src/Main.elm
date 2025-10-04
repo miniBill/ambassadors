@@ -20,13 +20,14 @@ import Types exposing (Action(..))
 
 type alias State =
     { players : SeqDict Player Euros
-    , countries :
-        SeqDict
-            Country
-            { rulingCoalition : SeqSet Player
-            , investments : SeqDict Player Euros
-            , votes : SeqDict Player Euros
-            }
+    , countries : SeqDict Country CountryState
+    }
+
+
+type alias CountryState =
+    { rulingCoalition : SeqSet Player
+    , investments : SeqDict Player Euros
+    , votes : SeqDict Player Euros
     }
 
 
@@ -82,7 +83,7 @@ viewHistory reverseHistory =
     let
         actionViews : List ( Element msg, State )
         actionViews =
-            List.foldl
+            List.foldr
                 (\action ( views, state ) ->
                     let
                         newState : State
@@ -139,8 +140,37 @@ updateState action state =
                         state.players
             }
 
-        InvestIn _ _ _ ->
-            Debug.todo "updateState - branch 'InvestIn _ _ _' not implemented"
+        InvestIn player country euros ->
+            { state
+                | players = SeqDict.updateIfExists player (Quantity.minus euros) state.players
+                , countries =
+                    SeqDict.update
+                        country
+                        (\countryState ->
+                            let
+                                old : CountryState
+                                old =
+                                    countryState
+                                        |> Maybe.withDefault
+                                            { rulingCoalition = SeqSet.empty
+                                            , investments = SeqDict.empty
+                                            , votes = SeqDict.empty
+                                            }
+                            in
+                            { old
+                                | investments =
+                                    SeqDict.insert player
+                                        (old.investments
+                                            |> SeqDict.get player
+                                            |> Maybe.withDefault Quantity.zero
+                                            |> Quantity.plus euros
+                                        )
+                                        old.investments
+                            }
+                                |> Just
+                        )
+                        state.countries
+            }
 
         Election _ _ ->
             Debug.todo "updateState - branch 'Election _ _' not implemented"
@@ -150,10 +180,10 @@ viewAction : Action -> State -> Element msg
 viewAction action state =
     case action of
         TravelTo p c ->
-            text (Data.playerToString p ++ " ⇒ " ++ Theme.countryFlag c ++ ", +€10")
+            text ("🚄 " ++ Data.playerToString p ++ " ⇒ " ++ Theme.countryFlag c)
 
-        InvestIn _ _ _ ->
-            text "TODO: viewAction 'InvestIn _ _ _'"
+        InvestIn p c e ->
+            text ("💰 " ++ Data.playerToString p ++ " " ++ Money.formatEuros e ++ " ⇒ " ++ Theme.countryFlag c)
 
         Election _ _ ->
             text "TODO: viewAction 'Election _ _' "
@@ -208,14 +238,7 @@ viewPlayersState players =
         }
 
 
-viewCountryState :
-    SeqDict
-        Country
-        { rulingCoalition : SeqSet Player
-        , investments : SeqDict Player Euros
-        , votes : SeqDict Player Euros
-        }
-    -> Element msg
+viewCountryState : SeqDict Country CountryState -> Element msg
 viewCountryState countries =
     let
         header : List (Html msg)
@@ -223,7 +246,6 @@ viewCountryState countries =
             [ Html.div [] []
             , Html.div
                 [ Html.Attributes.colspan (List.length Data.players)
-                , Html.Attributes.style "text-align" "center"
                 , Html.Attributes.style "background-color" "#fdd"
                 , Html.Attributes.style "padding" "8px"
                 , Html.Attributes.style "grid-column-start" "2"
@@ -232,7 +254,6 @@ viewCountryState countries =
                 [ Html.text "Votes" ]
             , Html.div
                 [ Html.Attributes.colspan (List.length Data.players)
-                , Html.Attributes.style "text-align" "center"
                 , Html.Attributes.style "background-color" "#ddf"
                 , Html.Attributes.style "padding" "8px"
                 , Html.Attributes.style "grid-column-start" (String.fromInt (2 + List.length Data.players))
@@ -260,12 +281,7 @@ viewCountryState countries =
                 |> List.concatMap viewRow
 
         viewRow :
-            ( Country
-            , { rulingCoalition : SeqSet Player
-              , investments : SeqDict Player Euros
-              , votes : SeqDict Player Euros
-              }
-            )
+            ( Country, CountryState )
             -> List (Html msg)
         viewRow ( country, { rulingCoalition, investments, votes } ) =
             (Html.text (Theme.countryFlag country)
@@ -290,7 +306,6 @@ viewCountryState countries =
                     (\e ->
                         Html.div
                             [ Html.Attributes.style "padding" "8px"
-                            , Html.Attributes.style "text-align" "right"
                             ]
                             [ e ]
                     )
@@ -300,6 +315,7 @@ viewCountryState countries =
             [ Html.Attributes.style "display" "grid"
             , Html.Attributes.style "grid-template-columns"
                 ("auto repeat(" ++ String.fromInt (2 * List.length Data.players) ++ ", 1fr)")
+            , Html.Attributes.style "text-align" "center"
             ]
         |> Element.html
         |> el
