@@ -12,6 +12,7 @@ import Html.Attributes
 import Maybe.Extra
 import Money exposing (Euros)
 import Quantity
+import Round
 import SeqDict exposing (SeqDict)
 import SeqSet exposing (SeqSet)
 import Theme exposing (column)
@@ -360,6 +361,16 @@ viewPlayersState state =
 viewCountryState : SeqDict Country CountryState -> Element msg
 viewCountryState countries =
     let
+        padding : String
+        padding =
+            "4px"
+
+        cell : List (Html.Attribute msg) -> Html msg -> Html msg
+        cell attrs e =
+            Html.div
+                (Html.Attributes.style "padding" padding :: attrs)
+                [ e ]
+
         header : List (Html msg)
         header =
             [ Html.div
@@ -368,7 +379,7 @@ viewCountryState countries =
                 ]
                 []
             , Html.div
-                [ Html.Attributes.style "padding" "8px"
+                [ Html.Attributes.style "padding" padding
                 , Html.Attributes.style "grid-row-start" "1"
                 , Html.Attributes.style "grid-row-end" "3"
                 ]
@@ -376,37 +387,39 @@ viewCountryState countries =
                 , Html.br [] []
                 , Html.text "Coalition"
                 ]
-            , Html.div
+            , cell
                 [ Html.Attributes.colspan (List.length Data.players)
                 , Html.Attributes.style "background-color" "rgb(178,178,255)"
-                , Html.Attributes.style "padding" "8px"
-                , Html.Attributes.style "grid-column-start" "3"
-                , Html.Attributes.style "grid-column-end" (String.fromInt (3 + List.length Data.players))
+                , Html.Attributes.style "grid-column" ("span " ++ String.fromInt (2 * List.length Data.players))
                 ]
-                [ Html.text "Votes" ]
-            , Html.div
+                (Html.text "Votes")
+            , cell
                 [ Html.Attributes.colspan (List.length Data.players)
                 , Html.Attributes.style "background-color" "rgb(178,255,178)"
-                , Html.Attributes.style "padding" "8px"
-                , Html.Attributes.style "grid-column-start" (String.fromInt (3 + List.length Data.players))
-                , Html.Attributes.style "grid-column-end" (String.fromInt (5 + 2 * List.length Data.players))
+                , Html.Attributes.style "grid-column" ("span " ++ String.fromInt (2 * List.length Data.players))
                 ]
-                [ Html.text "Investment" ]
+                (Html.text "Investment")
             ]
                 ++ headerNamesCells
                 ++ headerNamesCells
-                ++ [ Html.div [ Html.Attributes.style "padding" "8px" ]
-                        [ Html.text "Initial" ]
-                   , Html.div [ Html.Attributes.style "padding" "8px" ]
-                        [ Html.text "Total" ]
+                ++ [ cell
+                        [ Html.Attributes.style "grid-column" "span 2"
+                        ]
+                        (Html.text "Initial")
+                   , cell
+                        [ Html.Attributes.style "grid-column" "span 2"
+                        ]
+                        (Html.text "Total")
                    ]
 
         headerNamesCells : List (Html msg)
         headerNamesCells =
             List.map
                 (\player ->
-                    Html.div [ Html.Attributes.style "padding" "8px" ]
-                        [ Html.text (Data.playerToString player) ]
+                    cell
+                        [ Html.Attributes.style "grid-column" "span 2"
+                        ]
+                        (Html.text (Data.playerToString player))
                 )
                 Data.players
 
@@ -421,6 +434,10 @@ viewCountryState countries =
             -> List (Html msg)
         viewRow ( country, { rulingCoalition, investments, votes } ) =
             let
+                euroCell : Euros -> Html msg
+                euroCell e =
+                    cell [] (Html.text (Money.formatEuros e))
+
                 totalVotes : Euros
                 totalVotes =
                     votes
@@ -434,11 +451,11 @@ viewCountryState countries =
                         |> Quantity.sum
                         |> Quantity.plus (initialInvestment country)
 
-                withPercentage : Maybe Euros -> Euros -> String
+                withPercentage : Maybe Euros -> Euros -> List (Html msg)
                 withPercentage maybeMoney total =
                     case maybeMoney of
                         Nothing ->
-                            ""
+                            [ Html.div [] [], Html.div [] [] ]
 
                         Just money ->
                             let
@@ -448,20 +465,21 @@ viewCountryState countries =
                                         * Money.inEuros money
                                         // Money.inEuros total
                             in
-                            Money.formatEuros money ++ " (" ++ String.fromInt percentInt ++ "%)"
+                            [ euroCell money
+                            , cell [ Html.Attributes.style "text-align" "right" ]
+                                (Html.text ("(" ++ String.fromInt percentInt ++ "%)"))
+                            ]
             in
-            (Html.text (Theme.countryFlag country)
-                :: Html.text (String.join ", " (List.map Data.playerToString (SeqSet.toList rulingCoalition)))
-                :: List.map
+            cell [] (Html.text (Theme.countryFlag country))
+                :: cell [] (Html.text (String.join ", " (List.map Data.playerToString (SeqSet.toList rulingCoalition))))
+                :: List.concatMap
                     (\player ->
                         withPercentage (SeqDict.get player votes) totalVotes
-                            |> Html.text
                     )
                     Data.players
-                ++ List.map
+                ++ List.concatMap
                     (\player ->
                         withPercentage (SeqDict.get player investments) totalInvestments
-                            |> Html.text
                     )
                     Data.players
                 ++ (let
@@ -469,31 +487,20 @@ viewCountryState countries =
                         initial =
                             initialInvestment country
                     in
-                    [ initial
-                        |> Money.formatEuros
-                        |> Html.text
+                    [ euroCell initial
                     , investments
                         |> SeqDict.values
                         |> (::) initial
                         |> Quantity.sum
-                        |> Money.formatEuros
-                        |> Html.text
+                        |> euroCell
                     ]
                    )
-            )
-                |> List.map
-                    (\e ->
-                        Html.div
-                            [ Html.Attributes.style "padding" "8px"
-                            ]
-                            [ e ]
-                    )
     in
     (header ++ rows)
         |> Html.div
             [ Html.Attributes.style "display" "grid"
             , Html.Attributes.style "grid-template-columns"
-                ("auto auto repeat(" ++ String.fromInt (2 + 2 * List.length Data.players) ++ ", 1fr)")
+                ("auto auto repeat(" ++ String.fromInt (2 + 4 * List.length Data.players) ++ ", 1fr)")
             , Html.Attributes.style "text-align" "center"
             ]
         |> Element.html
@@ -639,12 +646,16 @@ viewElection country ( votes, coalition ) finalState =
                                 Element.none
 
                             Just ( v, t ) ->
-                                el [ centerY ]
+                                el
+                                    [ centerY
+                                    , width fill
+                                    , Font.alignRight
+                                    ]
                                     (text
-                                        (String.fromInt
+                                        (Round.round 1
                                             (100
-                                                * Money.inEuros v
-                                                // Money.inEuros t
+                                                * toFloat (Money.inEuros v)
+                                                / toFloat (Money.inEuros t)
                                             )
                                             ++ "%"
                                         )
