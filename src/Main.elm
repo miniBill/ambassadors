@@ -2,7 +2,7 @@ module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
 import Data exposing (Country(..), Player)
-import Element exposing (Attribute, Color, Column, Element, alignTop, centerX, centerY, el, fill, rgb, shrink, table, text, width)
+import Element exposing (Attribute, Color, Column, Element, alignTop, centerX, centerY, el, fill, rgb, rgb255, shrink, table, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -223,7 +223,7 @@ viewAction : Action -> State -> ( Color, Element msg )
 viewAction action state =
     case action of
         TravelTo p c ->
-            ( rgb 0.99 0.7 0.7
+            ( rgb255 255 178 178
             , column [ width fill ]
                 [ el [ centerX ] (text (Data.playerToString p))
                 , el [ centerX ] (text ("🚄 ⇒ " ++ Theme.countryFlag c))
@@ -231,7 +231,7 @@ viewAction action state =
             )
 
         InvestIn p c e ->
-            ( rgb 0.7 0.99 0.7
+            ( rgb255 178 255 178
             , column [ width fill ]
                 [ el [ centerX ] (text (Data.playerToString p ++ " " ++ Money.formatEuros e))
                 , el [ centerX ] (text ("💰 ⇒ " ++ Theme.countryFlag c))
@@ -239,7 +239,7 @@ viewAction action state =
             )
 
         Election c _ ->
-            ( rgb 0.7 0.7 0.99
+            ( rgb255 178 178 255
             , el [ centerX ] (text ("🗳️ ⇒ " ++ Theme.countryFlag c))
             )
 
@@ -301,7 +301,7 @@ viewCountryState countries =
             [ Html.div [] []
             , Html.div
                 [ Html.Attributes.colspan (List.length Data.players)
-                , Html.Attributes.style "background-color" "#fdd"
+                , Html.Attributes.style "background-color" "rgb(178,178,255)"
                 , Html.Attributes.style "padding" "8px"
                 , Html.Attributes.style "grid-column-start" "2"
                 , Html.Attributes.style "grid-column-end" (String.fromInt (2 + List.length Data.players))
@@ -309,7 +309,7 @@ viewCountryState countries =
                 [ Html.text "Votes" ]
             , Html.div
                 [ Html.Attributes.colspan (List.length Data.players)
-                , Html.Attributes.style "background-color" "#ddf"
+                , Html.Attributes.style "background-color" "rgb(178,255,178)"
                 , Html.Attributes.style "padding" "8px"
                 , Html.Attributes.style "grid-column-start" (String.fromInt (2 + List.length Data.players))
                 , Html.Attributes.style "grid-column-end" (String.fromInt (2 + 2 * List.length Data.players))
