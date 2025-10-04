@@ -184,11 +184,32 @@ updateState action state =
             }
 
         Election country votes coalition ->
+            let
+                totalLiquidity : Euros
+                totalLiquidity =
+                    state.players
+                        |> SeqDict.values
+                        |> Quantity.sum
+            in
             { state
                 | players =
                     SeqDict.foldl
                         (\player vote ->
-                            SeqDict.updateIfExists player (Quantity.minus vote)
+                            SeqDict.updateIfExists player
+                                (\initial ->
+                                    initial
+                                        -- €100 per vote
+                                        |> Quantity.plus (Money.euros 100)
+                                        -- Eat the rich
+                                        |> Quantity.minus
+                                            (Money.euros
+                                                (100
+                                                    * Money.inEuros initial
+                                                    // Money.inEuros totalLiquidity
+                                                )
+                                            )
+                                        |> Quantity.minus vote
+                                )
                         )
                         state.players
                         votes
