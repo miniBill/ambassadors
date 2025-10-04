@@ -190,6 +190,7 @@ updateState action state =
                     old.investments
                         |> SeqDict.values
                         |> Quantity.sum
+                        |> Quantity.plus (initialInvestment country)
 
                 old : CountryState
                 old =
@@ -415,28 +416,54 @@ viewCountryState countries =
             ( Country, CountryState )
             -> List (Html msg)
         viewRow ( country, { rulingCoalition, investments, votes } ) =
+            let
+                totalVotes : Euros
+                totalVotes =
+                    votes
+                        |> SeqDict.values
+                        |> Quantity.sum
+
+                totalInvestments : Euros
+                totalInvestments =
+                    investments
+                        |> SeqDict.values
+                        |> Quantity.sum
+                        |> Quantity.plus (initialInvestment country)
+
+                withPercentage : Maybe Euros -> Euros -> String
+                withPercentage maybeMoney total =
+                    case maybeMoney of
+                        Nothing ->
+                            ""
+
+                        Just money ->
+                            let
+                                percentInt : Int
+                                percentInt =
+                                    100
+                                        * Money.inEuros money
+                                        // Money.inEuros total
+                            in
+                            Money.formatEuros money ++ " (" ++ String.fromInt percentInt ++ "%)"
+            in
             (Html.text (Theme.countryFlag country)
                 :: Html.text (String.join ", " (List.map Data.playerToString (SeqSet.toList rulingCoalition)))
                 :: List.map
                     (\player ->
-                        SeqDict.get player votes
-                            |> Maybe.map Money.formatEuros
-                            |> Maybe.withDefault ""
+                        withPercentage (SeqDict.get player votes) totalVotes
                             |> Html.text
                     )
                     Data.players
                 ++ List.map
                     (\player ->
-                        SeqDict.get player investments
-                            |> Maybe.map Money.formatEuros
-                            |> Maybe.withDefault ""
+                        withPercentage (SeqDict.get player investments) totalInvestments
                             |> Html.text
                     )
                     Data.players
                 ++ (let
                         initial : Euros
                         initial =
-                            Money.euros (Data.countryToPopulation country // 100000)
+                            initialInvestment country
                     in
                     [ initial
                         |> Money.formatEuros
@@ -471,6 +498,11 @@ viewCountryState countries =
             , Theme.padding
             , Theme.spacing
             ]
+
+
+initialInvestment : Country -> Euros
+initialInvestment country =
+    Money.euros (Data.countryToPopulation country // 100000)
 
 
 viewNextAction : Model -> Element Msg
