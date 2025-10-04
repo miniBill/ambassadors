@@ -129,7 +129,7 @@ viewHistory reverseHistory =
               }
             , { header = Element.none
               , width = fill
-              , view = \i ( _, state ) -> viewCountryState state.countries
+              , view = \_ ( _, state ) -> viewCountryState state.countries
               }
             ]
     in
@@ -237,24 +237,24 @@ viewAction action =
         TravelTo player country ->
             ( rgb255 255 178 178
             , column [ width fill ]
-                [ el [ centerX ] (text (Data.playerToString player))
-                , el [ centerX ] (text ("🚄 ⇒ " ++ Theme.countryFlag country))
+                [ el [ centerX ] (text ("🚄 ⇒ " ++ Theme.countryFlag country))
+                , el [ centerX ] (text (Data.playerToString player))
                 ]
             )
 
         InvestIn player country euros ->
             ( rgb255 178 255 178
             , column [ width fill ]
-                [ el [ centerX ] (text (Data.playerToString player ++ " " ++ Money.formatEuros euros))
-                , el [ centerX ] (text ("💰 ⇒ " ++ Theme.countryFlag country))
+                [ el [ centerX ] (text ("💰 ⇒ " ++ Theme.countryFlag country))
+                , el [ centerX ] (text (Data.playerToString player ++ " " ++ Money.formatEuros euros))
                 ]
             )
 
         Election country _ coalition ->
             ( rgb255 178 178 255
             , column [ width fill ]
-                [ el [ centerX ] (text (String.join ", " (List.map Data.playerToString (SeqSet.toList coalition))))
-                , el [ centerX ] (text ("🗳️ ⇒ " ++ Theme.countryFlag country))
+                [ el [ centerX ] (text ("🗳️ ⇒ " ++ Theme.countryFlag country))
+                , el [ centerX ] (text (String.join ", " (List.map Data.playerToString (SeqSet.toList coalition))))
                 ]
             )
 
@@ -313,27 +313,42 @@ viewCountryState countries =
     let
         header : List (Html msg)
         header =
-            [ Html.div [] []
+            [ Html.div
+                [ Html.Attributes.style "grid-row-start" "1"
+                , Html.Attributes.style "grid-row-end" "3"
+                ]
+                []
+            , Html.div
+                [ Html.Attributes.style "padding" "8px"
+                , Html.Attributes.style "grid-row-start" "1"
+                , Html.Attributes.style "grid-row-end" "3"
+                ]
+                [ Html.text "Ruling"
+                , Html.br [] []
+                , Html.text "Coalition"
+                ]
             , Html.div
                 [ Html.Attributes.colspan (List.length Data.players)
                 , Html.Attributes.style "background-color" "rgb(178,178,255)"
                 , Html.Attributes.style "padding" "8px"
-                , Html.Attributes.style "grid-column-start" "2"
-                , Html.Attributes.style "grid-column-end" (String.fromInt (2 + List.length Data.players))
+                , Html.Attributes.style "grid-column-start" "3"
+                , Html.Attributes.style "grid-column-end" (String.fromInt (3 + List.length Data.players))
                 ]
                 [ Html.text "Votes" ]
             , Html.div
                 [ Html.Attributes.colspan (List.length Data.players)
                 , Html.Attributes.style "background-color" "rgb(178,255,178)"
                 , Html.Attributes.style "padding" "8px"
-                , Html.Attributes.style "grid-column-start" (String.fromInt (2 + List.length Data.players))
-                , Html.Attributes.style "grid-column-end" (String.fromInt (2 + 2 * List.length Data.players))
+                , Html.Attributes.style "grid-column-start" (String.fromInt (3 + List.length Data.players))
+                , Html.Attributes.style "grid-column-end" (String.fromInt (4 + 2 * List.length Data.players))
                 ]
                 [ Html.text "Investment" ]
-            , Html.div [] []
             ]
                 ++ headerNamesCells
                 ++ headerNamesCells
+                ++ [ Html.div [ Html.Attributes.style "padding" "8px" ]
+                        [ Html.text "Total" ]
+                   ]
 
         headerNamesCells : List (Html msg)
         headerNamesCells =
@@ -355,6 +370,7 @@ viewCountryState countries =
             -> List (Html msg)
         viewRow ( country, { rulingCoalition, investments, votes } ) =
             (Html.text (Theme.countryFlag country)
+                :: Html.text (String.join ", " (List.map Data.playerToString (SeqSet.toList rulingCoalition)))
                 :: List.map
                     (\player ->
                         SeqDict.get player votes
@@ -371,6 +387,12 @@ viewCountryState countries =
                             |> Html.text
                     )
                     Data.players
+                ++ [ investments
+                        |> SeqDict.values
+                        |> Quantity.sum
+                        |> Money.formatEuros
+                        |> Html.text
+                   ]
             )
                 |> List.map
                     (\e ->
@@ -384,7 +406,7 @@ viewCountryState countries =
         |> Html.div
             [ Html.Attributes.style "display" "grid"
             , Html.Attributes.style "grid-template-columns"
-                ("auto repeat(" ++ String.fromInt (2 * List.length Data.players) ++ ", 1fr)")
+                ("auto auto repeat(" ++ String.fromInt (2 * List.length Data.players) ++ ", 1fr) auto")
             , Html.Attributes.style "text-align" "center"
             ]
         |> Element.html
