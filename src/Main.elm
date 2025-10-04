@@ -239,8 +239,8 @@ viewAction action state =
             )
 
         Election c _ ->
-            ( rgb 0.99 0.99 0.7
-            , text ("🗳️ " ++ Theme.countryFlag c)
+            ( rgb 0.7 0.7 0.99
+            , el [ centerX ] (text ("🗳️ ⇒ " ++ Theme.countryFlag c))
             )
 
 
