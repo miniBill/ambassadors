@@ -2,7 +2,7 @@ module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
 import Data exposing (Country(..), Player)
-import Element exposing (Attribute, Element, alignBottom, alignTop, el, fill, height, text, width)
+import Element exposing (Attribute, Element, alignBottom, alignTop, el, fill, fillPortion, height, text, width)
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
@@ -29,18 +29,20 @@ type alias State =
 type alias Model =
     { reverseHistory : List Action
     , focused : Maybe Int
-    , travel : ( Maybe Player, Maybe Country )
-    , election : ( Maybe Country, SeqDict Player Euros )
-    , investment : ( Maybe Player, Maybe Country, Euros )
+    , country : Maybe Country
+    , travel : Maybe Player
+    , election : SeqDict Player Euros
+    , investment : ( Maybe Player, Euros )
     }
 
 
 type Msg
     = CommitAction Action
     | Undo
-    | PrepareTravel ( Maybe Player, Maybe Country )
-    | PrepareElection ( Maybe Country, SeqDict Player Euros )
-    | PrepareInvestment ( Maybe Player, Maybe Country, Euros )
+    | PrepareCountry (Maybe Country)
+    | PrepareTravel (Maybe Player)
+    | PrepareElection (SeqDict Player Euros)
+    | PrepareInvestment (Maybe Player) Euros
 
 
 main : Program () Model Msg
@@ -56,9 +58,10 @@ init : Model
 init =
     { reverseHistory = []
     , focused = Nothing
-    , travel = ( Nothing, Nothing )
-    , election = ( Nothing, SeqDict.empty )
-    , investment = ( Nothing, Nothing, Quantity.zero )
+    , country = Nothing
+    , travel = Nothing
+    , election = SeqDict.empty
+    , investment = ( Nothing, Quantity.zero )
     }
 
 
@@ -147,31 +150,117 @@ viewState state =
 
 viewNextAction : Model -> Element Msg
 viewNextAction model =
-    wrappedRow []
-        [ box [ alignTop, height fill ] <| viewTravel model.travel
-        , box [ alignTop, height fill ] <| viewInvestment model.investment
-        , box [ alignTop, height fill ] <| viewElection model.election
+    column
+        [ Border.width 1
+        , Theme.padding
+        ]
+        [ el [ Font.bold ] (text "Country")
+        , Element.map PrepareCountry (countryPicker model.country)
+        , [ ( fill, viewTravel model.country model.travel )
+          , ( fill, viewInvestment model.country model.investment )
+          , ( fillPortion 2, viewElection model.country model.election )
+          ]
+            |> List.map
+                (\( portion, children ) ->
+                    column
+                        [ Border.width 1
+                        , Theme.padding
+                        , alignTop
+                        , height fill
+                        , width portion
+                        ]
+                        children
+                )
+            |> wrappedRow []
         ]
 
 
-viewTravel : ( Maybe Player, Maybe Country ) -> Element Msg
-viewTravel ( player, country ) =
-    column [ height fill ]
-        [ el [ Font.bold ] (text "Travel")
-        , Element.map
-            (\newPlayer -> PrepareTravel ( newPlayer, country ))
-            (playerPicker player)
-        , Element.map
-            (\newCountry -> PrepareTravel ( player, newCountry ))
-            (countryPicker country)
-        , Theme.primaryButton
-            [ width fill
-            , alignBottom
-            ]
-            { label = "Travel"
-            , onPress = Maybe.map2 (\p c -> CommitAction (TravelTo p c)) player country
-            }
+viewTravel : Maybe Country -> Maybe Player -> List (Element Msg)
+viewTravel country player =
+    [ el [ Font.bold ] (text "Travel")
+    , Element.map PrepareTravel (playerPicker player)
+    , Theme.primaryButton
+        [ width fill
+        , alignBottom
         ]
+        { label = "Travel"
+        , onPress = Maybe.map2 (\p c -> CommitAction (TravelTo p c)) player country
+        }
+    ]
+
+
+viewInvestment : Maybe Country -> ( Maybe Player, Euros ) -> List (Element Msg)
+viewInvestment country ( player, euros ) =
+    [ el [ Font.bold ] (text "Invest")
+    , Element.map
+        (\newPlayer -> PrepareInvestment newPlayer euros)
+        (playerPicker player)
+    , Input.text [ width fill ]
+        { label = Input.labelLeft [] (text "€")
+        , text = String.fromInt (Money.inEuros euros)
+        , onChange =
+            \newEuros ->
+                PrepareInvestment player
+                    (newEuros
+                        |> String.toInt
+                        |> Maybe.map Money.euros
+                        |> Maybe.withDefault euros
+                    )
+        , placeholder = Nothing
+        }
+    , Theme.primaryButton
+        [ width fill
+        , alignBottom
+        ]
+        { label = "Invest"
+        , onPress = Maybe.map2 (\p c -> CommitAction (InvestIn p c euros)) player country
+        }
+    ]
+
+
+viewElection : Maybe Country -> SeqDict Player Euros -> List (Element Msg)
+viewElection country votes =
+    let
+        playerRow : Player -> Element Msg
+        playerRow player =
+            let
+                previous : Euros
+                previous =
+                    SeqDict.get player votes
+                        |> Maybe.withDefault Quantity.zero
+            in
+            Input.text [ width fill ]
+                { label = Input.labelLeft [] (text "€")
+                , text =
+                    previous
+                        |> Money.inEuros
+                        |> String.fromInt
+                , onChange =
+                    \newEuros ->
+                        SeqDict.insert player
+                            (newEuros
+                                |> String.toInt
+                                |> Maybe.map Money.euros
+                                |> Maybe.withDefault previous
+                            )
+                            votes
+                            |> PrepareElection
+                , placeholder = Nothing
+                }
+
+        button : Element Msg
+        button =
+            Theme.primaryButton
+                [ width fill
+                , alignBottom
+                ]
+                { label = "Elect"
+                , onPress = Maybe.map (\c -> CommitAction (Election c votes)) country
+                }
+    in
+    el [ Font.bold ] (text "Election")
+        :: List.map playerRow Data.players
+        ++ [ button ]
 
 
 playerPicker : Maybe Player -> Element (Maybe Player)
@@ -185,7 +274,7 @@ playerPicker selected =
                     , value = player
                     }
             )
-        |> row []
+        |> wrappedRow []
 
 
 countryPicker : Maybe Country -> Element (Maybe Country)
@@ -200,46 +289,6 @@ countryPicker selected =
                     }
             )
         |> wrappedRow []
-
-
-viewInvestment : ( Maybe Player, Maybe Country, Euros ) -> Element Msg
-viewInvestment ( player, country, euros ) =
-    column []
-        [ el [ Font.bold ] (text "Invest")
-        , Element.map
-            (\newPlayer -> PrepareInvestment ( newPlayer, country, euros ))
-            (playerPicker player)
-        , Element.map
-            (\newCountry -> PrepareInvestment ( player, newCountry, euros ))
-            (countryPicker country)
-        , Input.text [ width fill ]
-            { label = Input.labelLeft [] (text "€")
-            , text = String.fromInt (Money.inEuros euros)
-            , onChange =
-                \newEuros ->
-                    PrepareInvestment
-                        ( player
-                        , country
-                        , newEuros
-                            |> String.toInt
-                            |> Maybe.map Money.euros
-                            |> Maybe.withDefault euros
-                        )
-            , placeholder = Nothing
-            }
-        , Theme.primaryButton
-            [ width fill
-            , alignBottom
-            ]
-            { label = "Invest"
-            , onPress = Maybe.map2 (\p c -> CommitAction (InvestIn p c euros)) player country
-            }
-        ]
-
-
-viewElection : ( Maybe Country, SeqDict Player Euros ) -> Element Msg
-viewElection arg1 =
-    text "TODO: viewElection"
 
 
 box : List (Attribute msg) -> Element msg -> Element msg
@@ -261,11 +310,14 @@ update msg model =
         Undo ->
             { model | reverseHistory = List.drop 1 model.reverseHistory }
 
+        PrepareCountry country ->
+            { model | country = country }
+
         PrepareTravel travel ->
             { model | travel = travel }
 
         PrepareElection election ->
             { model | election = election }
 
-        PrepareInvestment investment ->
-            { model | investment = investment }
+        PrepareInvestment player euros ->
+            { model | investment = ( player, euros ) }
