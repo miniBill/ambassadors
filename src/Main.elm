@@ -190,11 +190,38 @@ updateState action state =
                     state.players
                         |> SeqDict.values
                         |> Quantity.sum
+
+                totalInvestment : Euros
+                totalInvestment =
+                    old.investments
+                        |> SeqDict.values
+                        |> Quantity.sum
+
+                old : CountryState
+                old =
+                    SeqDict.get country state.countries
+                        |> Maybe.withDefault
+                            { rulingCoalition = SeqSet.empty
+                            , investments = SeqDict.empty
+                            , votes = SeqDict.empty
+                            }
             in
             { state
                 | players =
                     SeqDict.foldl
                         (\player vote ->
+                            let
+                                rent : Euros
+                                rent =
+                                    Money.euros
+                                        (100
+                                            * Money.inEuros
+                                                (Maybe.withDefault Quantity.zero <|
+                                                    SeqDict.get player old.investments
+                                                )
+                                            // Money.inEuros totalInvestment
+                                        )
+                            in
                             SeqDict.updateIfExists player
                                 (\initial ->
                                     initial
@@ -208,46 +235,34 @@ updateState action state =
                                                     // Money.inEuros totalLiquidity
                                                 )
                                             )
+                                        |> Quantity.plus rent
                                         |> Quantity.minus vote
                                 )
                         )
                         state.players
                         votes
                 , countries =
-                    SeqDict.update
+                    SeqDict.insert
                         country
-                        (\countryState ->
-                            let
-                                old : CountryState
-                                old =
-                                    countryState
-                                        |> Maybe.withDefault
-                                            { rulingCoalition = SeqSet.empty
-                                            , investments = SeqDict.empty
-                                            , votes = SeqDict.empty
-                                            }
-                            in
-                            { old
-                                | rulingCoalition = coalition
-                                , votes =
-                                    SeqDict.foldl
-                                        (\player vote acc ->
-                                            if vote == Quantity.zero then
-                                                acc
+                        { old
+                            | rulingCoalition = coalition
+                            , votes =
+                                SeqDict.foldl
+                                    (\player vote acc ->
+                                        if vote == Quantity.zero then
+                                            acc
 
-                                            else
-                                                SeqDict.insert player
-                                                    (SeqDict.get player acc
-                                                        |> Maybe.withDefault Quantity.zero
-                                                        |> Quantity.plus vote
-                                                    )
-                                                    acc
-                                        )
-                                        old.votes
-                                        votes
-                            }
-                                |> Just
-                        )
+                                        else
+                                            SeqDict.insert player
+                                                (SeqDict.get player acc
+                                                    |> Maybe.withDefault Quantity.zero
+                                                    |> Quantity.plus vote
+                                                )
+                                                acc
+                                    )
+                                    old.votes
+                                    votes
+                        }
                         state.countries
             }
 
