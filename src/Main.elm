@@ -80,10 +80,19 @@ viewHistory reverseHistory =
             List.foldl
                 (\action ( views, state ) ->
                     let
+                        newState : State
                         newState =
                             updateState action state
                     in
-                    ( box [ width fill ] (viewAction action state) :: views, newState )
+                    ( el
+                        [ Border.width 1
+                        , Theme.padding
+                        , width fill
+                        ]
+                        (viewAction action state)
+                        :: views
+                    , newState
+                    )
                 )
                 ( [], initialState )
                 reverseHistory
@@ -150,32 +159,40 @@ viewState state =
 
 viewNextAction : Model -> Element Msg
 viewNextAction model =
-    column
-        [ Border.width 1
-        , Theme.padding
-        ]
-        (Element.map PrepareCountry (countryPicker model.country)
-            :: ([ viewTravel model.country model.travel
-                , viewInvestment model.country model.investment
-                , viewElection model.country model.election
+    let
+        box : List (Element msg) -> Element msg
+        box children =
+            column
+                [ Border.width 1
+                , Theme.padding
+                , width fill
                 ]
-                    |> List.map
-                        (\children ->
-                            row
-                                [ Border.width 1
-                                , Theme.padding
-                                , width fill
-                                ]
-                                children
-                        )
-               )
-        )
+                children
+    in
+    box
+        [ Element.map PrepareCountry (countryPicker model.country)
+        , row [ width fill ]
+            [ column
+                [ width fill
+                , alignTop
+                ]
+                [ box (viewTravel model.country model.travel)
+                , box (viewInvestment model.country model.investment)
+                ]
+            , column
+                [ Border.width 1
+                , Theme.padding
+                , width fill
+                ]
+                (viewElection model.country model.election)
+            ]
+        ]
 
 
 viewTravel : Maybe Country -> Maybe Player -> List (Element Msg)
 viewTravel country player =
     [ Element.map PrepareTravel (playerPicker [] player)
-    , Theme.primaryButton [ alignRight ]
+    , Theme.primaryButton [ width fill ]
         { label = "Travel"
         , onPress = Maybe.map2 (\p c -> CommitAction (TravelTo p c)) player country
         }
@@ -193,7 +210,7 @@ viewInvestment country ( player, euros ) =
         , onChange = PrepareInvestment player
         , placeholder = Nothing
         }
-    , Theme.primaryButton [ alignRight ]
+    , Theme.primaryButton [ width fill ]
         { label = "Invest"
         , onPress =
             Maybe.map3
@@ -238,24 +255,24 @@ viewElection country votes =
 
         button : Element Msg
         button =
-            Theme.primaryButton [ alignRight ]
+            Theme.primaryButton [ width fill ]
                 { label = "Elect"
                 , onPress = Maybe.map2 (\c v -> CommitAction (Election c v)) country parsedVotes
                 }
 
         parsedVotes : Maybe (SeqDict Player Euros)
         parsedVotes =
-            votes
-                |> SeqDict.toList
+            Data.players
                 |> Maybe.Extra.combineMap
-                    (\( k, v ) ->
-                        Maybe.map
-                            (\e ->
-                                ( k
-                                , Money.euros e
+                    (\player ->
+                        SeqDict.get player votes
+                            |> Maybe.andThen String.toInt
+                            |> Maybe.map
+                                (\e ->
+                                    ( player
+                                    , Money.euros e
+                                    )
                                 )
-                            )
-                            (String.toInt v)
                     )
                 |> Maybe.map SeqDict.fromList
     in
@@ -293,16 +310,6 @@ countryPicker selected =
                     }
             )
         |> wrappedRow []
-
-
-box : List (Attribute msg) -> Element msg -> Element msg
-box attrs child =
-    el
-        (Border.width 1
-            :: Theme.padding
-            :: attrs
-        )
-        child
 
 
 update : Msg -> Model -> Model
