@@ -2,7 +2,7 @@ module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
 import Data exposing (Country(..), Player)
-import Element exposing (Attribute, Column, Element, alignTop, centerY, el, fill, rgb, shrink, table, text, width)
+import Element exposing (Attribute, Color, Column, Element, alignTop, centerX, centerY, el, fill, rgb, shrink, table, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -14,7 +14,7 @@ import Money exposing (Euros)
 import Quantity
 import SeqDict exposing (SeqDict)
 import SeqSet exposing (SeqSet)
-import Theme
+import Theme exposing (column)
 import Types exposing (Action(..))
 
 
@@ -81,7 +81,7 @@ view model =
 viewHistory : List Action -> Element Msg
 viewHistory reverseHistory =
     let
-        actionViews : List ( Element msg, State )
+        actionViews : List ( ( Color, Element msg ), State )
         actionViews =
             List.foldr
                 (\action ( views, state ) ->
@@ -98,18 +98,18 @@ viewHistory reverseHistory =
                 reverseHistory
                 |> Tuple.first
 
-        columns : List (Column ( Element msg, State ) msg)
+        columns : List (Column ( ( Color, Element msg ), State ) msg)
         columns =
             [ { header = Element.none
               , width = shrink
               , view =
-                    \( f, state ) ->
+                    \( ( color, f ), state ) ->
                         Theme.column []
                             [ el
                                 [ Border.width 1
                                 , Theme.padding
                                 , width fill
-                                , Background.color (rgb 0.9 0.9 0.6)
+                                , Background.color color
                                 , alignTop
                                 ]
                                 f
@@ -124,7 +124,7 @@ viewHistory reverseHistory =
     in
     table [ Theme.spacing ]
         { columns = columns
-        , data = actionViews ++ [ ( text "Initial", initialState ) ]
+        , data = actionViews ++ [ ( ( rgb 1 1 1, el [ centerX ] (text "Initial") ), initialState ) ]
         }
 
 
@@ -172,21 +172,76 @@ updateState action state =
                         state.countries
             }
 
-        Election _ _ ->
-            Debug.todo "updateState - branch 'Election _ _' not implemented"
+        Election country votes ->
+            { state
+                | players =
+                    SeqDict.foldl
+                        (\player vote ->
+                            SeqDict.updateIfExists player (Quantity.minus vote)
+                        )
+                        state.players
+                        votes
+                , countries =
+                    SeqDict.update
+                        country
+                        (\countryState ->
+                            let
+                                old : CountryState
+                                old =
+                                    countryState
+                                        |> Maybe.withDefault
+                                            { rulingCoalition = SeqSet.empty
+                                            , investments = SeqDict.empty
+                                            , votes = SeqDict.empty
+                                            }
+                            in
+                            { old
+                                | votes =
+                                    SeqDict.foldl
+                                        (\player vote acc ->
+                                            if vote == Quantity.zero then
+                                                acc
+
+                                            else
+                                                SeqDict.insert player
+                                                    (SeqDict.get player acc
+                                                        |> Maybe.withDefault Quantity.zero
+                                                        |> Quantity.plus vote
+                                                    )
+                                                    acc
+                                        )
+                                        old.votes
+                                        votes
+                            }
+                                |> Just
+                        )
+                        state.countries
+            }
 
 
-viewAction : Action -> State -> Element msg
+viewAction : Action -> State -> ( Color, Element msg )
 viewAction action state =
     case action of
         TravelTo p c ->
-            text ("🚄 " ++ Data.playerToString p ++ " ⇒ " ++ Theme.countryFlag c)
+            ( rgb 0.99 0.7 0.7
+            , column [ width fill ]
+                [ el [ centerX ] (text (Data.playerToString p))
+                , el [ centerX ] (text ("🚄 ⇒ " ++ Theme.countryFlag c))
+                ]
+            )
 
         InvestIn p c e ->
-            text ("💰 " ++ Data.playerToString p ++ " " ++ Money.formatEuros e ++ " ⇒ " ++ Theme.countryFlag c)
+            ( rgb 0.7 0.99 0.7
+            , column [ width fill ]
+                [ el [ centerX ] (text (Data.playerToString p ++ " " ++ Money.formatEuros e))
+                , el [ centerX ] (text ("💰 ⇒ " ++ Theme.countryFlag c))
+                ]
+            )
 
-        Election _ _ ->
-            text "TODO: viewAction 'Election _ _' "
+        Election c _ ->
+            ( rgb 0.99 0.99 0.7
+            , text ("🗳️ " ++ Theme.countryFlag c)
+            )
 
 
 initialState : State
@@ -215,17 +270,17 @@ initialState =
 viewPlayersState : SeqDict Player Euros -> Element msg
 viewPlayersState players =
     let
-        columns : List (Column () msg)
+        columns : List (Column ( Player, Euros ) msg)
         columns =
-            players
-                |> SeqDict.toList
-                |> List.map
-                    (\( player, euros ) ->
-                        { width = shrink
-                        , view = \_ -> el [ Font.alignRight ] (text (Money.formatEuros euros))
-                        , header = text (Data.playerToString player)
-                        }
-                    )
+            [ { width = shrink
+              , view = \( player, _ ) -> text (Data.playerToString player)
+              , header = Element.none
+              }
+            , { width = shrink
+              , view = \( _, euros ) -> el [ Font.alignRight ] (text (Money.formatEuros euros))
+              , header = Element.none
+              }
+            ]
     in
     table
         [ Border.width 1
@@ -233,7 +288,7 @@ viewPlayersState players =
         , Theme.spacing
         , width shrink
         ]
-        { data = [ () ]
+        { data = SeqDict.toList players
         , columns = columns
         }
 
