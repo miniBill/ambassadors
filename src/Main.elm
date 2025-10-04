@@ -2,7 +2,7 @@ module Main exposing (Model, Msg(..), main)
 
 import Browser
 import Data exposing (Country, Player)
-import Element exposing (Attribute, Color, Column, Element, alignRight, alignTop, centerX, centerY, el, fill, rgb, rgb255, shrink, table, text, width)
+import Element exposing (Attribute, Color, Column, Element, IndexedColumn, alignRight, alignTop, centerX, centerY, el, fill, indexedTable, rgb, rgb255, shrink, table, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -98,12 +98,12 @@ viewHistory reverseHistory =
                 reverseHistory
                 |> Tuple.first
 
-        columns : List (Column ( ( Color, Element msg ), State ) msg)
+        columns : List (IndexedColumn ( ( Color, Element Msg ), State ) Msg)
         columns =
             [ { header = Element.none
               , width = shrink
               , view =
-                    \( ( color, f ), state ) ->
+                    \i ( ( color, f ), state ) ->
                         Theme.column []
                             [ el
                                 [ Border.width 1
@@ -114,15 +114,26 @@ viewHistory reverseHistory =
                                 ]
                                 f
                             , viewPlayersState state.players
+                            , if i == 0 && not (List.isEmpty reverseHistory) then
+                                Theme.button
+                                    [ width fill
+                                    , Background.color (rgb255 255 0 0)
+                                    ]
+                                    { label = "Undo"
+                                    , onPress = Just Undo
+                                    }
+
+                              else
+                                Element.none
                             ]
               }
             , { header = Element.none
               , width = fill
-              , view = \( _, state ) -> viewCountryState state.countries
+              , view = \i ( _, state ) -> viewCountryState state.countries
               }
             ]
     in
-    table [ Theme.spacing ]
+    indexedTable [ Theme.spacing ]
         { columns = columns
         , data = actionViews ++ [ ( ( rgb 1 1 1, el [ centerX ] (text "Initial") ), initialState ) ]
         }
