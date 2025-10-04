@@ -2,7 +2,8 @@ module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
 import Data exposing (Country(..), Player)
-import Element exposing (Attribute, Column, Element, alignTop, centerY, el, fill, shrink, table, text, width)
+import Element exposing (Attribute, Column, Element, alignTop, centerY, el, fill, rgb, shrink, table, text, width)
+import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
@@ -10,6 +11,7 @@ import Html exposing (Html)
 import Html.Attributes
 import Maybe.Extra
 import Money exposing (Euros)
+import Quantity
 import SeqDict exposing (SeqDict)
 import SeqSet exposing (SeqSet)
 import Theme
@@ -78,7 +80,8 @@ view model =
 viewHistory : List Action -> Element Msg
 viewHistory reverseHistory =
     let
-        ( actionViews, finalState ) =
+        actionViews : List ( Element msg, State )
+        actionViews =
             List.foldl
                 (\action ( views, state ) ->
                     let
@@ -86,27 +89,55 @@ viewHistory reverseHistory =
                         newState =
                             updateState action state
                     in
-                    ( el
-                        [ Border.width 1
-                        , Theme.padding
-                        , width fill
-                        ]
-                        (viewAction action state)
-                        :: views
+                    ( ( viewAction action state, newState ) :: views
                     , newState
                     )
                 )
                 ( [], initialState )
                 reverseHistory
+                |> Tuple.first
+
+        columns : List (Column ( Element msg, State ) msg)
+        columns =
+            [ { header = Element.none
+              , width = shrink
+              , view =
+                    \( f, state ) ->
+                        Theme.column []
+                            [ el
+                                [ Border.width 1
+                                , Theme.padding
+                                , width fill
+                                , Background.color (rgb 0.9 0.9 0.6)
+                                , alignTop
+                                ]
+                                f
+                            , viewPlayersState state.players
+                            ]
+              }
+            , { header = Element.none
+              , width = fill
+              , view = \( _, state ) -> viewCountryState state.countries
+              }
+            ]
     in
-    Theme.column [] (viewState finalState :: actionViews)
+    table [ Theme.spacing ]
+        { columns = columns
+        , data = actionViews ++ [ ( text "Initial", initialState ) ]
+        }
 
 
 updateState : Action -> State -> State
 updateState action state =
     case action of
-        TravelTo _ _ ->
-            Debug.todo "updateState - branch 'TravelTo _ _' not implemented"
+        TravelTo player _ ->
+            { state
+                | players =
+                    SeqDict.updateIfExists
+                        player
+                        (Quantity.plus (Money.euros 10))
+                        state.players
+            }
 
         InvestIn _ _ _ ->
             Debug.todo "updateState - branch 'InvestIn _ _ _' not implemented"
@@ -118,8 +149,8 @@ updateState action state =
 viewAction : Action -> State -> Element msg
 viewAction action state =
     case action of
-        TravelTo _ _ ->
-            text "TODO: viewAction 'TravelTo _ _' "
+        TravelTo p c ->
+            text (Data.playerToString p ++ " ⇒ " ++ Theme.countryFlag c ++ ", +€10")
 
         InvestIn _ _ _ ->
             text "TODO: viewAction 'InvestIn _ _ _'"
@@ -151,14 +182,6 @@ initialState =
     }
 
 
-viewState : State -> Element msg
-viewState state =
-    Theme.column []
-        [ viewPlayersState state.players
-        , viewCountryState state.countries
-        ]
-
-
 viewPlayersState : SeqDict Player Euros -> Element msg
 viewPlayersState players =
     let
@@ -178,6 +201,7 @@ viewPlayersState players =
         [ Border.width 1
         , Theme.padding
         , Theme.spacing
+        , width shrink
         ]
         { data = [ () ]
         , columns = columns
