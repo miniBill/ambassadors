@@ -374,14 +374,12 @@ viewCountryState countries =
         header : List (Html msg)
         header =
             [ Html.div
-                [ Html.Attributes.style "grid-row-start" "1"
-                , Html.Attributes.style "grid-row-end" "3"
+                [ Html.Attributes.style "grid-row" "span 2"
                 ]
                 []
             , Html.div
                 [ Html.Attributes.style "padding" padding
-                , Html.Attributes.style "grid-row-start" "1"
-                , Html.Attributes.style "grid-row-end" "3"
+                , Html.Attributes.style "grid-row" "span 2"
                 ]
                 [ Html.text "Ruling"
                 , Html.br [] []
@@ -396,20 +394,14 @@ viewCountryState countries =
             , cell
                 [ Html.Attributes.colspan (List.length Data.players)
                 , Html.Attributes.style "background-color" "rgb(178,255,178)"
-                , Html.Attributes.style "grid-column" ("span " ++ String.fromInt (2 * List.length Data.players))
+                , Html.Attributes.style "grid-column" ("span " ++ String.fromInt (2 + 2 * List.length Data.players))
                 ]
                 (Html.text "Investment")
             ]
                 ++ headerNamesCells
                 ++ headerNamesCells
-                ++ [ cell
-                        [ Html.Attributes.style "grid-column" "span 2"
-                        ]
-                        (Html.text "Initial")
-                   , cell
-                        [ Html.Attributes.style "grid-column" "span 2"
-                        ]
-                        (Html.text "Total")
+                ++ [ cell [] (Html.text "Initial")
+                   , cell [] (Html.text "Total")
                    ]
 
         headerNamesCells : List (Html msg)
@@ -436,7 +428,7 @@ viewCountryState countries =
             let
                 euroCell : Euros -> Html msg
                 euroCell e =
-                    cell [] (Html.text (Money.formatEuros e))
+                    cell [ Html.Attributes.style "text-align" "right" ] (Html.text (Money.formatEuros e))
 
                 totalVotes : Euros
                 totalVotes =
