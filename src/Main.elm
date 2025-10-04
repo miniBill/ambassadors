@@ -388,7 +388,7 @@ viewCountryState countries =
             , cell
                 [ Html.Attributes.colspan (List.length Data.players)
                 , Html.Attributes.style "background-color" "rgb(178,178,255)"
-                , Html.Attributes.style "grid-column" ("span " ++ String.fromInt (2 * List.length Data.players))
+                , Html.Attributes.style "grid-column" ("span " ++ String.fromInt (1 + 2 * List.length Data.players))
                 ]
                 (Html.text "Votes")
             , cell
@@ -399,7 +399,8 @@ viewCountryState countries =
                 (Html.text "Investment")
             ]
                 ++ headerNamesCells
-                ++ headerNamesCells
+                ++ cell [] (Html.text "Total")
+                :: headerNamesCells
                 ++ [ cell [] (Html.text "Initial")
                    , cell [] (Html.text "Total")
                    ]
@@ -469,7 +470,8 @@ viewCountryState countries =
                         withPercentage (SeqDict.get player votes) totalVotes
                     )
                     Data.players
-                ++ List.concatMap
+                ++ euroCell totalVotes
+                :: List.concatMap
                     (\player ->
                         withPercentage (SeqDict.get player investments) totalInvestments
                     )
@@ -492,7 +494,7 @@ viewCountryState countries =
         |> Html.div
             [ Html.Attributes.style "display" "grid"
             , Html.Attributes.style "grid-template-columns"
-                ("auto auto repeat(" ++ String.fromInt (2 + 4 * List.length Data.players) ++ ", 1fr)")
+                ("auto auto repeat(" ++ String.fromInt (3 + 4 * List.length Data.players) ++ ", 1fr)")
             , Html.Attributes.style "text-align" "center"
             , Html.Attributes.style "font-variant-numeric" "tabular-nums"
             ]
