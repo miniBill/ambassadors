@@ -426,6 +426,7 @@ viewCountryState countries =
                     )
                     Data.players
                 ++ (let
+                        initial : Euros
                         initial =
                             Money.euros (Data.countryToPopulation country // 100000)
                     in
