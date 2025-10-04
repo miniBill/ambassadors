@@ -630,12 +630,9 @@ viewElection country ( votes, coalition ) finalState =
               , view =
                     \player ->
                         case
-                            Maybe.map2 Tuple.pair
-                                (Maybe.andThen
-                                    (\s -> SeqDict.get player s.votes)
-                                    nextState
-                                )
-                                totalVotes
+                            nextState
+                                |> Maybe.andThen (\s -> SeqDict.get player s.votes)
+                                |> Maybe.map2 Tuple.pair totalVotes
                         of
                             Nothing ->
                                 Element.none
