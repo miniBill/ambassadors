@@ -340,13 +340,15 @@ viewCountryState countries =
                 , Html.Attributes.style "background-color" "rgb(178,255,178)"
                 , Html.Attributes.style "padding" "8px"
                 , Html.Attributes.style "grid-column-start" (String.fromInt (3 + List.length Data.players))
-                , Html.Attributes.style "grid-column-end" (String.fromInt (4 + 2 * List.length Data.players))
+                , Html.Attributes.style "grid-column-end" (String.fromInt (5 + 2 * List.length Data.players))
                 ]
                 [ Html.text "Investment" ]
             ]
                 ++ headerNamesCells
                 ++ headerNamesCells
                 ++ [ Html.div [ Html.Attributes.style "padding" "8px" ]
+                        [ Html.text "Initial" ]
+                   , Html.div [ Html.Attributes.style "padding" "8px" ]
                         [ Html.text "Total" ]
                    ]
 
@@ -387,12 +389,21 @@ viewCountryState countries =
                             |> Html.text
                     )
                     Data.players
-                ++ [ investments
+                ++ (let
+                        initial =
+                            Money.euros (Data.countryToPopulation country // 100000)
+                    in
+                    [ initial
+                        |> Money.formatEuros
+                        |> Html.text
+                    , investments
                         |> SeqDict.values
+                        |> (::) initial
                         |> Quantity.sum
                         |> Money.formatEuros
                         |> Html.text
-                   ]
+                    ]
+                   )
             )
                 |> List.map
                     (\e ->
@@ -406,7 +417,7 @@ viewCountryState countries =
         |> Html.div
             [ Html.Attributes.style "display" "grid"
             , Html.Attributes.style "grid-template-columns"
-                ("auto auto repeat(" ++ String.fromInt (2 * List.length Data.players) ++ ", 1fr) auto")
+                ("auto auto repeat(" ++ String.fromInt (2 + 2 * List.length Data.players) ++ ", 1fr)")
             , Html.Attributes.style "text-align" "center"
             ]
         |> Element.html
