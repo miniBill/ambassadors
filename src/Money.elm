@@ -1,4 +1,4 @@
-module Money exposing (..)
+module Money exposing (Euro(..), Euros, euros, formatEuros)
 
 import Quantity exposing (Quantity(..))
 
@@ -14,11 +14,6 @@ type Euro
 euros : number -> Quantity number Euro
 euros =
     Quantity
-
-
-inEuros : Quantity number Euro -> number
-inEuros (Quantity q) =
-    q
 
 
 formatEuros : Euros -> String

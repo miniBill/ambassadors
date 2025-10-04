@@ -1,7 +1,7 @@
-module Theme exposing (button, column, countryFlag, padding, primaryButton, rhythm, row, spacing, toggle, wrappedRow)
+module Theme exposing (button, column, countryFlag, padding, primaryButton, row, spacing, toggle, wrappedRow)
 
 import Data exposing (Country(..))
-import Element exposing (Attribute, Element, rgb, spacing, text)
+import Element exposing (Attribute, Element, rgb, text)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font

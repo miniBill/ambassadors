@@ -1,4 +1,4 @@
-module Data exposing (Country(..), Player(..), countries, countryArea, countryToPopulation, initialCountry, playerToString, players)
+module Data exposing (Country(..), Player(..), countries, initialCountry, playerToString, players)
 
 import Area exposing (Area)
 

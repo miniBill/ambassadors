@@ -1,8 +1,8 @@
-module Main exposing (Model, Msg(..), init, main, update, view)
+module Main exposing (Model, Msg(..), main)
 
 import Browser
-import Data exposing (Country(..), Player)
-import Element exposing (Attribute, Color, Column, Element, alignTop, centerX, centerY, el, fill, rgb, rgb255, shrink, table, text, width)
+import Data exposing (Country, Player)
+import Element exposing (Attribute, Color, Column, Element, alignRight, alignTop, centerX, centerY, el, fill, rgb, rgb255, shrink, table, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -36,7 +36,7 @@ type alias Model =
     , focused : Maybe Int
     , country : Maybe Country
     , travel : Maybe Player
-    , election : SeqDict Player String
+    , election : ( SeqDict Player String, SeqSet Player )
     , investment : ( Maybe Player, String )
     }
 
@@ -46,7 +46,7 @@ type Msg
     | Undo
     | PrepareCountry (Maybe Country)
     | PrepareTravel (Maybe Player)
-    | PrepareElection (SeqDict Player String)
+    | PrepareElection (SeqDict Player String) (SeqSet Player)
     | PrepareInvestment (Maybe Player) String
 
 
@@ -65,7 +65,7 @@ init =
     , focused = Nothing
     , country = Nothing
     , travel = Nothing
-    , election = SeqDict.empty
+    , election = ( SeqDict.empty, SeqSet.empty )
     , investment = ( Nothing, "" )
     }
 
@@ -90,7 +90,7 @@ viewHistory reverseHistory =
                         newState =
                             updateState action state
                     in
-                    ( ( viewAction action state, newState ) :: views
+                    ( ( viewAction action, newState ) :: views
                     , newState
                     )
                 )
@@ -172,7 +172,7 @@ updateState action state =
                         state.countries
             }
 
-        Election country votes ->
+        Election country votes coalition ->
             { state
                 | players =
                     SeqDict.foldl
@@ -196,7 +196,8 @@ updateState action state =
                                             }
                             in
                             { old
-                                | votes =
+                                | rulingCoalition = coalition
+                                , votes =
                                     SeqDict.foldl
                                         (\player vote acc ->
                                             if vote == Quantity.zero then
@@ -219,28 +220,31 @@ updateState action state =
             }
 
 
-viewAction : Action -> State -> ( Color, Element msg )
-viewAction action state =
+viewAction : Action -> ( Color, Element msg )
+viewAction action =
     case action of
-        TravelTo p c ->
+        TravelTo player country ->
             ( rgb255 255 178 178
             , column [ width fill ]
-                [ el [ centerX ] (text (Data.playerToString p))
-                , el [ centerX ] (text ("🚄 ⇒ " ++ Theme.countryFlag c))
+                [ el [ centerX ] (text (Data.playerToString player))
+                , el [ centerX ] (text ("🚄 ⇒ " ++ Theme.countryFlag country))
                 ]
             )
 
-        InvestIn p c e ->
+        InvestIn player country euros ->
             ( rgb255 178 255 178
             , column [ width fill ]
-                [ el [ centerX ] (text (Data.playerToString p ++ " " ++ Money.formatEuros e))
-                , el [ centerX ] (text ("💰 ⇒ " ++ Theme.countryFlag c))
+                [ el [ centerX ] (text (Data.playerToString player ++ " " ++ Money.formatEuros euros))
+                , el [ centerX ] (text ("💰 ⇒ " ++ Theme.countryFlag country))
                 ]
             )
 
-        Election c _ ->
+        Election country _ coalition ->
             ( rgb255 178 178 255
-            , el [ centerX ] (text ("🗳️ ⇒ " ++ Theme.countryFlag c))
+            , column [ width fill ]
+                [ el [ centerX ] (text (String.join ", " (List.map Data.playerToString (SeqSet.toList coalition))))
+                , el [ centerX ] (text ("🗳️ ⇒ " ++ Theme.countryFlag country))
+                ]
             )
 
 
@@ -445,8 +449,8 @@ viewInvestment country ( player, euros ) =
     ]
 
 
-viewElection : Maybe Country -> SeqDict Player String -> List (Element Msg)
-viewElection country votes =
+viewElection : Maybe Country -> ( SeqDict Player String, SeqSet Player ) -> List (Element Msg)
+viewElection country ( votes, coalition ) =
     let
         columns : List (Column Player Msg)
         columns =
@@ -469,8 +473,7 @@ viewElection country votes =
                             , text = previous
                             , onChange =
                                 \newEuros ->
-                                    SeqDict.insert player newEuros votes
-                                        |> PrepareElection
+                                    PrepareElection (SeqDict.insert player newEuros votes) coalition
                             , placeholder = Nothing
                             }
               }
@@ -480,7 +483,7 @@ viewElection country votes =
         button =
             Theme.primaryButton [ width fill ]
                 { label = "Elect"
-                , onPress = Maybe.map2 (\c v -> CommitAction (Election c v)) country parsedVotes
+                , onPress = Maybe.map2 (\c v -> CommitAction (Election c v coalition)) country parsedVotes
                 }
 
         parsedVotes : Maybe (SeqDict Player Euros)
@@ -503,6 +506,34 @@ viewElection country votes =
         { data = Data.players
         , columns = columns
         }
+    , Data.players
+        |> List.map
+            (\player ->
+                Theme.button
+                    (if SeqSet.member player coalition then
+                        [ Background.color (rgb 0.3 0.3 1)
+                        , Font.color (rgb 1 1 1)
+                        , Border.color (rgb 0 0 0)
+                        , alignRight
+                        ]
+
+                     else
+                        [ alignRight ]
+                    )
+                    { label = Data.playerToString player
+                    , onPress =
+                        if SeqSet.member player coalition then
+                            SeqSet.remove player coalition
+                                |> Just
+
+                        else
+                            SeqSet.insert player coalition
+                                |> Just
+                    }
+            )
+        |> (::) (el [ Font.bold ] (text "Winning coalition"))
+        |> Theme.row [ width fill ]
+        |> Element.map (PrepareElection votes)
     , button
     ]
 
@@ -550,8 +581,8 @@ update msg model =
         PrepareTravel travel ->
             { model | travel = travel }
 
-        PrepareElection election ->
-            { model | election = election }
+        PrepareElection election coalition ->
+            { model | election = ( election, coalition ) }
 
         PrepareInvestment player euros ->
             { model | investment = ( player, euros ) }
